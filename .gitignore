@@ -1,0 +1,21 @@
+# Compiled output
+*.exe
+*.dll
+
+# Temp / debug / log
+temp/
+*_debug*
+*.log
+
+# IDE
+.vs/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Native drivers
+native/*.sys
+
