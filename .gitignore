@@ -1,0 +1,28 @@
+# Compiled output
+*.exe
+*.dll
+
+# Temp / debug / log
+temp/
+*_debug*
+*.log
+
+# IDE
+.vs/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Native drivers
+native/*.sys
+
+# Test build artifacts (covered by *.exe above)
+# dock/test/*.exe (already ignored by root *.exe pattern)
+
+# Python (prism/test/)
+__pycache__/
+*.pyc
+

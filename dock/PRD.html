@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WinDock PRD</title>
+<style>
+  :root {
+    --doc-bg:#fff; --doc-fg:#1a1a1a; --doc-muted:#666;
+    --doc-border:#ddd; --doc-card:#f5f6f8;
+    --green:#1a7f37; --orange:#b8600c; --red:#cf222e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--doc-bg); color:var(--doc-fg); font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; max-width:960px; margin:0 auto; padding:40px 24px; }
+  h1 { font-size:24px; border-bottom:2px solid #e0e0e0; padding-bottom:12px; margin-bottom:4px; }
+  h2 { font-size:18px; margin:40px 0 16px; color:#003796; }
+  h3 { font-size:15px; margin:24px 0 10px; }
+  table { width:100%; border-collapse:collapse; margin:12px 0 24px; }
+  th,td { border:1px solid var(--doc-border); padding:8px 12px; font-size:13px; text-align:left; }
+  th { background:var(--doc-card); font-weight:600; }
+  code { background:#f0f0f0; padding:2px 6px; border-radius:3px; font-size:13px; }
+  .done { color:var(--green); font-weight:600; }
+  .wip { color:var(--orange); font-weight:600; }
+  .pending { color:var(--red); font-weight:600; }
+  .meta { color:var(--doc-muted); font-size:13px; margin-bottom:24px; }
+
+  /* ===== Info Card (hover tooltip) ===== */
+  .info-dot {
+    display: inline-block; width: 16px; height: 16px;
+    border-radius: 50%; background: #003796; color: #fff;
+    font-size: 10px; line-height: 16px; text-align: center;
+    cursor: help; margin-left: 4px; font-weight: 700;
+    position: relative; vertical-align: middle;
+  }
+  .info-dot:hover .info-card { display: block; }
+  .info-dot.pitfall { background: var(--orange); }
+  .info-dot.impl { background: #003796; }
+  .info-card {
+    display: none;
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    width: 320px; background: #fff; border: 2px solid #003796;
+    border-radius: 8px; padding: 14px 16px; font-size: 12px; line-height: 1.6;
+    text-align: left; color: #1a1a1a; font-weight: 400;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    z-index: 100;
+    cursor: default;
+  }
+  .info-card.pitfall-card { border-color: var(--orange); }
+  .info-card h4 { font-size: 13px; margin: 0 0 6px; color: #003796; }
+  .info-card.pitfall-card h4 { color: var(--orange); }
+  .info-card p { margin: 4px 0; }
+  .info-card code { font-size: 11px; }
+  .info-card::after {
+    content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; border-left: 8px solid transparent;
+    border-right: 8px solid transparent; border-top: 8px solid #003796;
+  }
+  .info-card.pitfall-card::after { border-top-color: var(--orange); }
+
+  /* ===== Mockups ===== */
+  .mockup {
+    background: #f8f9fb; border: 1px solid #e0e2e8; border-radius: 8px;
+    padding: 24px; margin: 16px 0 8px; overflow-x: auto;
+  }
+  .mockup-label { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .dock-bar {
+    display: flex; align-items: flex-end; justify-content: center; gap: 8px;
+    padding: 14px 20px 8px; border-radius: 12px 12px 0 0;
+    background: linear-gradient(180deg, rgba(236,226,210,0.55) 0%, rgba(220,215,200,0.65) 40%, rgba(210,205,192,0.75) 100%);
+    border: 1px solid rgba(0,0,0,0.06); border-bottom: none;
+    width: fit-content; min-width: 400px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 -1px 6px rgba(0,0,0,0.08);
+  }
+  .icon-tile {
+    width: 44px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #333; font-weight: 700; position: relative;
+    transition: all 0.28s cubic-bezier(0.4,0,0.2,1); flex-shrink: 0;
+    background: radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.5) 0%, transparent 60%), rgba(210,220,240,0.45);
+    border: 1px solid rgba(0,0,0,0.08); cursor: default;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .icon-tile.magnified { width:59px; height:59px; border-radius:12px; transform:translateY(-15px); box-shadow:0 6px 20px rgba(0,0,0,0.12); }
+  .icon-tile.inactive { opacity:0.3; }
+  .icon-tile.vs { border-left:2px solid #0078d4; }
+  .icon-tile.edge { border-left:2px solid #0078d4; }
+  .icon-tile.steam { border-left:2px solid #1a1a2e; }
+  .icon-tile.wechat { border-left:2px solid #2dc100; }
+  .icon-tile.special { border:1px dashed rgba(0,0,0,0.15); background:rgba(190,200,225,0.3); font-size:14px; color:#999; }
+  .badge-dot {
+    position:absolute; top:-4px; right:-4px; width:18px; height:18px;
+    border-radius:50%; background:#cf222e; color:#fff; font-size:10px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    border:2px solid rgba(210,220,240,0.9); line-height:1;
+  }
+  .glass-shelf { height:4px; border-radius:0 0 8px 8px; background:linear-gradient(90deg,rgba(0,55,150,0.05),rgba(0,55,150,0.15) 50%,rgba(0,55,150,0.05)); width:100%; }
+  .mag-diagram { display:flex; align-items:flex-end; justify-content:center; gap:5px; padding:16px 0; }
+  .mag-diagram .icon-tile { transition:none; }
+  .mag-diagram .s1 { width:46px; height:46px; } .mag-diagram .s2 { width:50px; height:50px; }
+  .mag-diagram .s3 { width:59px; height:59px; transform:translateY(-15px); }
+  .mag-diagram .s4 { width:50px; height:50px; } .mag-diagram .s5 { width:46px; height:46px; }
+  .scale-label { position:absolute; bottom:-18px; left:50%; transform:translateX(-50%); font-size:9px; color:var(--doc-muted); }
+  .icon-row { display:flex; gap:8px; align-items:flex-end; padding:8px 0; }
+  .icon-label { font-size:10px; color:var(--doc-muted); text-align:center; margin-top:4px; max-width:80px; }
+  .icon-with-label { display:flex; flex-direction:column; align-items:center; }
+  .ctx-menu { background:linear-gradient(180deg,rgba(210,220,240,0.96),rgba(190,200,225,0.98)); border:1px solid rgba(0,0,0,0.1); border-radius:10px; padding:6px 0; width:180px; box-shadow:0 8px 24px rgba(0,0,0,0.15); color:#1a1a1a; }
+  .ctx-item { padding:6px 14px; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .ctx-item:hover { background:rgba(0,55,150,0.08); }
+  .ctx-sep { border-top:1px solid rgba(0,0,0,0.08); margin:4px 8px; }
+  .toggle-flow { display:flex; align-items:center; gap:16px; padding:12px 0; flex-wrap:wrap; }
+  .toggle-state { text-align:center; padding:14px 16px; border:1px solid var(--doc-border); border-radius:8px; min-width:120px; background:#fff; }
+  .toggle-arrow { color:var(--doc-muted); font-size:20px; }
+  .flow-step { display:inline-block; padding:4px 10px; border-radius:4px; font-size:12px; background:#f0f0f0; border:1px solid #ddd; margin:2px; }
+  .flow-arrow { color:var(--doc-muted); margin:0 4px; }
+</style>
+</head>
+<body>
+
+<h1>WinDock PRD</h1>
+<p class="meta">v0.1.1 · 2026-06-21 · 鼠标悬停 <span class="info-dot impl" style="position:static">i</span> 看实现 · <span class="info-dot pitfall" style="position:static">!</span> 看踩坑</p>
+
+<!-- ============================================================ -->
+<h2>1. 图标展示</h2>
+
+<div class="mockup">
+  <div class="mockup-label">Dock 正常状态 — 6 个图标（浅色主题）</div>
+  <div class="dock-bar">
+    <div class="icon-tile special">⇅</div><div class="icon-tile special">⊞</div>
+    <div class="icon-tile edge">E</div><div class="icon-tile vs">VS</div>
+    <div class="icon-tile steam">S</div><div class="icon-tile wechat">W<span class="badge-dot">1</span></div>
+  </div>
+  <div class="glass-shelf"></div>
+</div>
+
+<h3>1.1 窗口枚举
+  <span class="info-dot impl">i
+    <div class="info-card"><h4>实现</h4>
+      <p><code>DockManager.FullRefresh()</code> — 启动/Toggle 时触发。遍历 <code>GetTopWindow → GetWindow(GW_HWNDNEXT)</code> 枚举所有顶层窗口，按 PID 去重，每个 PID 取最长标题的窗口。</p>
+      <p>每 1.5s <code>badgeTimer</code> 更新角标计数，不重建图标。此前 <code>DockBar.RefreshIcons()</code> 的定时器因 <code>DockBar.Create()</code> 从未被调用而完全未启动。</p>
+    </div>
+  </span>
+  <span class="info-dot pitfall">!
+    <div class="info-card pitfall-card"><h4>踩坑</h4>
+      <p><strong>DockBar 死代码</strong>：<code>DockBar.Create()</code> 从未被调用，<code>refreshTimer</code> 从未启动。Badge 只在 FullRefresh 时更新一次，用户打开/关闭窗口后不刷新。修复：在 <code>DockManager.Create()</code> 加独立 <code>badgeTimer</code>。</p>
+      <p><strong>Debug 模式位置陷阱</strong>：Debug 模式下 Dock 在 Y=40（顶部），导致图标检测启发式（仅检查底部）失败。</p>
+    </div>
+  </span>
+</h3>
+<table>
+  <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
+  <tr><td>1.1.1</td><td>枚举可见顶层窗口</td><td>排除 ToolWindow、空标题、Widget 窗口、系统进程</td><td class="done">✓</td></tr>
+  <tr><td>1.1.2</td><td>每个 PID 一个图标</td><td>同 PID 多窗口合并，取最长标题为代表</td><td class="done">✓</td></tr>
+  <tr><td>1.1.3</td><td>提取应用图标</td><td>Icon.ExtractAssociatedIcon → Bitmap → PictureBox</td><td class="done">✓</td></tr>
+  <tr><td>1.1.4</td><td>Badge 角标</td><td>圆形 GDI+ 绘制，Trebuchet MS 7f，随 curScale 缩放</td><td class="done">✓</td></tr>
+  <tr><td>1.1.5</td><td>Tooltip</td><td>Hover 200ms → 窗口标题 / 应用名</td><td class="done">✓</td></tr>
+</table>
+
+<h3>1.2 Badge 计数规则
+  <span class="info-dot impl">i
+    <div class="info-card"><h4>实现</h4>
+      <p><code>CountWindows(pid)</code> — 遍历所有窗口，匹配 PID + IsVisibleWindow。</p>
+      <p><code>CountWindowsForPin(pinPath)</code> — 遍历所有可见窗口，对每个匹配 pin 的 PID 调用 CountWindows 求和。解决多进程浏览器（Edge 8+ 进程）窗口分散问题。</p>
+      <p><code>badgeTimer</code> 每 1.5s 调用上述方法更新 badge，不重建图标。</p>
+    </div>
+  </span>
+  <span class="info-dot pitfall">!
+    <div class="info-card pitfall-card"><h4>踩坑</h4>
+      <p><strong>seenPids 检查顺序错误</strong>：<code>CountWindowsForPin</code> 初版在 <code>IsWindowVisible</code> 之前检查 <code>seenPids.Add(pp)</code>，导致第一个不可见窗口就把 PID 标记为"已处理"，后续同 PID 的可见窗口全被跳过。</p>
+      <p><strong>PID 死亡 Badge 归零</strong>：关闭窗口时特定 PID 进程退出，<code>GetProcessById</code> 抛异常 → <code>catch { }</code> 吞掉 → badge=0。修复：改用 <code>di.PinPath</code> 计数，不依赖 <code>di.Pid</code>。</p>
+      <p><strong>微信 8 个子窗口</strong>：<code>CountWindows</code> 统计所有可见窗口，微信内部子窗口被误计。修复：WeChat/Steam 托盘应用特殊处理，始终显示 1。</p>
+    </div>
+  </span>
+</h3>
+<div class="mockup">
+  <div class="mockup-label">Badge 状态示例</div>
+  <div class="icon-row" style="gap:24px">
+    <div class="icon-with-label"><div class="icon-tile wechat"><span class="badge-dot">1</span></div><div class="icon-label">微信后台 → 1</div></div>
+    <div class="icon-with-label"><div class="icon-tile edge" style="opacity:0.3"></div><div class="icon-label">Edge 未运行 → 0</div></div>
+    <div class="icon-with-label"><div class="icon-tile vs"><span class="badge-dot">2</span></div><div class="icon-label">VS Code 2 窗口 → 2</div></div>
+    <div class="icon-with-label"><div class="icon-tile steam"><span class="badge-dot">1</span></div><div class="icon-label">Steam 后台 → 1</div></div>
+  </div>
+</div>
+<table>
+  <tr><th>场景</th><th>规则</th><th>说明</th></tr>
+  <tr><td>微信 / Steam</td><td>进程存活 = 1</td><td>系统托盘应用</td></tr>
+  <tr><td>Edge / Chrome 等多进程浏览器</td><td>所有同名进程的可见窗口总数</td><td>Edge 10 进程、3 窗口 → badge=3</td></tr>
+  <tr><td>其他 pinned 应用</td><td>可见窗口数（存活但 0 窗口 → 1）</td><td></td></tr>
+  <tr><td>非 pinned 应用</td><td>可见窗口数</td><td></td></tr>
+</table>
+
+<h3>1.3 弹性放大</h3>
+<div class="mockup">
+  <div class="mockup-label">弹性镜头扩散 — 7 个图标，鼠标在第 4 个</div>
+  <div class="mag-diagram">
+    <div class="icon-tile s1" style="position:relative">1<span class="scale-label">1.0</span></div>
+    <div class="icon-tile s2" style="position:relative">2<span class="scale-label">1.06</span></div>
+    <div class="icon-tile s3" style="position:relative">3<span class="scale-label">1.18</span></div>
+    <div class="icon-tile magnified" style="position:relative">4<span class="scale-label" style="bottom:-28px">1.35</span></div>
+    <div class="icon-tile s4" style="position:relative">5<span class="scale-label">1.18</span></div>
+    <div class="icon-tile s5" style="position:relative">6<span class="scale-label">1.06</span></div>
+    <div class="icon-tile" style="position:relative">7<span class="scale-label">1.0</span></div>
+  </div>
+  <div style="font-size:12px;color:var(--doc-muted);margin-top:4px">Profile: [1.0, 1.06, 1.18, <strong>1.35</strong>, 1.18, 1.06, 1.0] · 半径 3 · 16ms lerp(0.2)</div>
+</div>
+<table>
+  <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
+  <tr><td>1.3.1</td><td>Hover 放大</td><td>targetScale=1.35；16ms Timer；lerp(0.2)</td><td class="done">✓</td></tr>
+  <tr><td>1.3.2</td><td>弹性镜头</td><td>相邻 ±3 图标连带</td><td class="done">✓</td></tr>
+  <tr><td>1.3.3</td><td>离开恢复</td><td>MouseLeave → targetScale=1.0</td><td class="done">✓</td></tr>
+  <tr><td>1.3.4</td><td>菜单冻结</td><td>MenuOpen=true → 停止 magTimer</td><td class="done">✓</td></tr>
+  <tr><td>1.3.5</td><td>RefreshLock</td><td>布局后 150ms 抑制 MouseLeave</td><td class="done">✓</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>2. 固定应用 (Pin)
+  <span class="info-dot pitfall">!
+    <div class="info-card pitfall-card"><h4>踩坑</h4>
+      <p><strong>双重刷新路径</strong>：<code>FullRefresh()</code>（启动/Toggle）和 <code>RefreshIcons()</code>（每 3s 定时）是两条独立路径。FullRefresh 的 pinned 去重修好了，但 RefreshIcons 仍在创建重复图标。修复后在 RefreshIcons 也加了 pinned 进程跳过 + 图标保留逻辑。</p>
+      <p><strong>Pinned-inactive 图标被定期刷新 Dispose</strong>：RefreshIcons 执行 <code>icons = found</code> 直接替换列表，未运行的 pinned 图标不在 <code>found</code> 中 → 被 Dispose。修复：强制保留旧列表中的 Pinned 图标。</p>
+    </div>
+  </span>
+</h2>
+
+<h3>2.1 图标状态流转</h3>
+<div class="mockup">
+  <div class="icon-row" style="gap:16px; align-items:center; flex-wrap:wrap">
+    <div class="icon-with-label"><div class="icon-tile edge inactive">E</div><div class="icon-label">未运行<br>pid=0 hwnd=False<br>badge=0</div></div>
+    <span style="font-size:18px;color:var(--doc-muted)">→</span>
+    <div class="icon-with-label"><div class="icon-tile edge">E<span class="badge-dot">1</span></div><div class="icon-label">已启动<br>pid=xxx hwnd=True</div></div>
+    <span style="font-size:18px;color:var(--doc-muted)">→</span>
+    <div class="icon-with-label"><div class="icon-tile edge">E<span class="badge-dot">3</span></div><div class="icon-label">多窗口<br>badge=3</div></div>
+    <span style="font-size:18px;color:var(--doc-muted)">→</span>
+    <div class="icon-with-label"><div class="icon-tile wechat">W<span class="badge-dot">1</span></div><div class="icon-label">后台（系统托盘）<br>IsWindowVisible=false<br>badge=1</div></div>
+    <span style="font-size:18px;color:var(--doc-muted)">→</span>
+    <div class="icon-with-label"><div class="icon-tile edge inactive">E</div><div class="icon-label">已关闭<br>badge=0</div></div>
+  </div>
+</div>
+
+<h3>2.2 Pin 同步
+  <span class="info-dot impl">i
+    <div class="info-card"><h4>实现</h4>
+      <p>COM <code>WScript.Shell.CreateShortcut()</code> 解析 .lnk 目标路径。三级匹配：exe 全路径 → 进程名精确匹配 → 进程名 StartsWith。StartsWith 仅用于 Steam→steamwebhelper 兼容，不用作通用策略（防误匹配）。</p>
+    </div>
+  </span>
+</h3>
+<table>
+  <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
+  <tr><td>2.2.1</td><td>读取系统固定</td><td>扫描 <code>User Pinned\TaskBar\*.lnk</code></td><td class="done">✓</td></tr>
+  <tr><td>2.2.2</td><td>匹配合并</td><td>三级：全路径 → 进程名 → StartsWith</td><td class="done">✓</td></tr>
+  <tr><td>2.2.3</td><td>固定/取消</td><td>右键菜单 → PinStore.Pin/Unpin</td><td class="done">✓</td></tr>
+</table>
+
+<h3>2.3 后台进程检测 + 点击恢复
+  <span class="info-dot impl">i
+    <div class="info-card"><h4>实现</h4>
+      <p><strong>后台进程检测</strong>：可见窗口枚举匹配失败 → <code>GetProcessesByName(pinName)</code> 检查进程是否后台运行。对所有匹配进程比较 <code>CountWindows(pid)</code>，选可见窗口最多的 PID。</p>
+      <p><strong>通用点击恢复</strong>：<code>di.HWnd</code> 有效 → <code>FocusWindow</code>（IsIconic→SW_RESTORE, !IsVisible→SW_SHOW → SwitchToThisWindow）。无效 → <code>Process.Start(path)</code>。</p>
+      <p><strong>微信 X-close 恢复（最终方案）</strong>：微信 X 关闭后进入 <code>vis=False, iconic=False, 894×647</code> 死快照状态。任何 Win32 消息均无法恢复交互性。唯一有效方法：<code>ShowWindow</code> 显示快照 → <code>SendInput</code>（原子 MOVE+LEFTDOWN+ABSOLUTE）硬件点击最小化按钮 (Right-188, Top+18) → Qt5 退出快照模式 → <code>SW_RESTORE</code> 恢复活窗口。<br><br><strong>最小化关闭</strong>：<code>iconic=True, 158×26</code> → <code>SW_RESTORE</code> 直接恢复（无需 SendInput）。</p>
+    </div>
+  </span>
+  <span class="info-dot pitfall">!
+    <div class="info-card pitfall-card"><h4>踩坑</h4>
+      <p><strong>约 20 种失败方案</strong>：SW_SHOW/RESTORE/SHOWNORMAL、SetForegroundWindow、SwitchToThisWindow、AttachThreadInput、WM_ACTIVATE 脉冲、WM_SYSCOMMAND(SC_MINIMIZE)、RegisterWindowMessage 0xC000-0xFFFF 全枚举、WH_GETMESSAGE 钩子(Error 183)、WM_USER+NIN_SELECT 枚举(0-101)、keybd_event Alt+Tab 等均无效。</p>
+      <p><strong>SendInput 原子性</strong>：MOVE + LEFTDOWN 需合并在一个 INPUT 事件中，否则用户鼠标移动会在 MOVE 和 DOWN 之间插入干扰。</p>
+      <p><strong>MainWindowHandle 为 0</strong>：<code>ApplyForegroundToIcon</code> 要求 <code>MainWindowHandle != IntPtr.Zero</code> 才设置 Pid。Steam 启动慢，300ms 触发时 Handle 还是 0 → 跳过。修复：只要进程存在就设置 Pid。</p>
+      <p><strong>FindWindow ANSI 限制</strong>：DockManager 的 <code>FindWindow</code> 默认是 ANSI 版本，无法匹配中文窗口标题"微信"。需加 <code>CharSet=CharSet.Unicode</code>。</p>
+    </div>
+  </span>
+</h3>
+<div class="mockup">
+  <div class="mockup-label">检测流程</div>
+  <div style="font-size:13px;line-height:2.4">
+    <span class="flow-step">枚举可见窗口</span><span class="flow-arrow">→</span>
+    <span class="flow-step">按路径/进程名 匹配 PinnedPaths</span><span class="flow-arrow">→</span>
+    <span style="color:var(--green)">✓ 匹配 → pinned+running</span><br>
+    <span class="flow-step" style="opacity:0.5">✗ 未匹配</span><span class="flow-arrow">→</span>
+    <span class="flow-step">GetProcessesByName → 选窗口最多的 PID</span><span class="flow-arrow">→</span>
+    <span style="color:var(--orange)">进程存活 → 后台 pinned+running</span><span class="flow-arrow">→</span>
+    <span style="color:var(--red)">不存在 → pinned-inactive</span>
+  </div>
+</div>
+<table>
+  <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
+  <tr><td>2.3.1</td><td>可见窗口匹配</td><td>枚举窗口按路径/进程名匹配 pinned</td><td class="done">✓</td></tr>
+  <tr><td>2.3.2</td><td>后台回退</td><td>GetProcessesByName → 选窗口最多的 PID</td><td class="done">✓</td></tr>
+  <tr><td>2.3.3</td><td>点击恢复</td><td>窗口不可见 → Process.Start；可见 → FocusWindow</td><td class="done">✓</td></tr>
+  <tr><td>2.3.4</td><td>多进程去重</td><td>同 pinned 全部 PID 标记 pinnedPids</td><td class="done">✓</td></tr>
+  <tr><td>2.3.5</td><td>定期刷新防退化</td><td>RefreshIcons 跳过 pinned 进程 + 保留旧图标</td><td class="done">✓</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>3. 交互</h2>
+
+<h3>3.1 点击</h3>
+<table>
+  <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
+  <tr><td>3.1.1</td><td>聚焦/恢复运行应用</td><td>可见 → SwitchToThisWindow；不可见 → Process.Start</td><td class="done">✓</td></tr>
+  <tr><td>3.1.2</td><td>启动不活跃固定应用</td><td>Process.Start(pinPath) → 300ms 匹配新进程</td><td class="done">✓</td></tr>
+  <tr><td>3.1.3</td><td>Toggle Dock</td><td>图标[0] 切换 隐藏/显示 Dock + 任务栏</td><td class="done">✓</td></tr>
+  <tr><td>3.1.4</td><td>Start 菜单</td><td>图标[1] → SendKeys.Send("^{ESC}")</td><td class="done">✓</td></tr>
+</table>
+
+<h3>3.2 Toggle 行为</h3>
+<div class="mockup">
+  <div class="toggle-flow">
+    <div class="toggle-state"><strong>Dock 可见</strong><br><small>图标展示 · 任务栏隐藏</small></div>
+    <div class="toggle-arrow">→</div>
+    <div class="toggle-state" style="border-color:var(--orange)"><strong>点击图标[0]</strong></div>
+    <div class="toggle-arrow">→</div>
+    <div class="toggle-state"><strong>Dock 隐藏</strong><br><small>ShowWindow(0) · 任务栏恢复</small></div>
+    <div class="toggle-arrow">→</div>
+    <div class="toggle-state" style="border-color:var(--orange)"><strong>再次点击/托盘</strong></div>
+    <div class="toggle-arrow">→</div>
+    <div class="toggle-state"><strong>Dock 可见</strong><br><small>FullRefresh · 图标恢复</small></div>
+  </div>
+</div>
+
+<h3>3.3 右键菜单</h3>
+<div class="mockup">
+  <div style="display:flex;gap:24px">
+    <div class="ctx-menu"><div class="ctx-item">关闭窗口</div><div class="ctx-item">打开</div><div class="ctx-sep"></div><div class="ctx-item">📌 取消固定</div></div>
+    <div style="font-size:12px;color:var(--doc-muted)">视觉需重新设计（当前占位）</div>
+  </div>
+</div>
+<table>
+  <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
+  <tr><td>3.3.1</td><td>右键菜单</td><td>关闭 / 打开 / 固定 / 取消固定</td><td class="wip">△</td></tr>
+  <tr><td>3.3.2</td><td>菜单视觉</td><td>GlassMenu 需重做</td><td class="pending">✗</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>4. Dock 栏行为
+  <span class="info-dot pitfall">!
+    <div class="info-card pitfall-card"><h4>踩坑</h4>
+      <p><strong>启动崩溃：<code>@"$env:TEMP\..."</code></strong>：C# 逐字字符串不会展开环境变量，<code>$env:TEMP\_dock_startup.txt</code> 被当作字面路径，冒号触发 ArgumentException → 进程崩溃 (exit code 0xE0434352)。</p>
+      <p><strong>EventLog 静默失败</strong>：所有 Write 操作被 <code>catch { }</code> 包裹，路径错误时完全无感知。加启动标记 + Path.GetTempPath 回退。</p>
+    </div>
+  </span>
+</h2>
+<table>
+  <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
+  <tr><td>4.1</td><td>位置</td><td>底部居中 (release) / 顶部 Y=40 (debug)</td><td class="done">✓</td></tr>
+  <tr><td>4.2</td><td>布局间距</td><td>LayoutEngine GAP=14px</td><td class="done">✓</td></tr>
+  <tr><td>4.3</td><td>任务栏控制</td><td>FindWindow("Shell_TrayWnd") → ShowWindow</td><td class="done">✓</td></tr>
+  <tr><td>4.4</td><td>主题</td><td>2s 轮询 SystemUsesLightTheme + Hash 噪声玻璃</td><td class="done">✓</td></tr>
+  <tr><td>4.5</td><td>DPI</td><td>SetProcessDPIAware + GetDeviceCaps</td><td class="done">✓</td></tr>
+  <tr><td>4.6</td><td>多显示器</td><td>GetCursorPos 检测，Dock 跟随</td><td class="done">✓</td></tr>
+  <tr><td>4.7</td><td>崩溃恢复</td><td>UnhandledException → 写 crash 文件 → 恢复任务栏</td><td class="done">✓</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>5. 待实现</h2>
+<table>
+  <tr><th>#</th><th>需求</th><th>优先级</th></tr>
+  <tr><td>5.1</td><td>右键菜单视觉重设计</td><td class="wip">中</td></tr>
+  <tr><td>5.2</td><td>Drag & Drop 排序</td><td class="pending">低</td></tr>
+  <tr><td>5.3</td><td>独立图标透明度</td><td class="pending">低</td></tr>
+  <tr><td>5.4</td><td>托盘图标移出溢出区</td><td class="pending">低</td></tr>
+  <tr><td>5.5</td><td>Dock 位置可配置</td><td class="pending">低</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>6. 测试</h2>
+<table>
+  <tr><th>#</th><th>用例</th><th>验证方式</th></tr>
+  <tr><td>6.1</td><td>Hover 放大 → 离开恢复</td><td>SimMouse + GetWindowRect: 44→59→44</td></tr>
+  <tr><td>6.2</td><td>点击切换前景窗口</td><td>SimMouse.LeftClick + GetForegroundWindow</td></tr>
+  <tr><td>6.3</td><td>Pinned 去重</td><td>解析 ICONS dump，同 pin 路径唯一</td></tr>
+  <tr><td>6.4</td><td>后台检测</td><td>event log: BackgroundProcess matched</td></tr>
+  <tr><td>6.5</td><td>Toggle 固定图标不丢失</td><td>Toggle 前后 ICONS count 不变</td></tr>
+  <tr><td>6.6</td><td>Badge 实时更新</td><td>test-edge-badge.ps1：开窗/关窗 → badge 增减</td></tr>
+</table>
+
+</body>
+</html>
