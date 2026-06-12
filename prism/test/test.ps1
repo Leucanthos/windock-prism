@@ -1,4 +1,4 @@
-# Desktop Widgets Test Harness — test.ps1
+﻿# Desktop Widgets Test Harness — test.ps1
 # Usage: .\test.ps1   (run from repo root: .\test\test.ps1)
 # Tests: compile unified Prism.exe, launch, verify all 6 widget windows appear, stability
 
@@ -27,7 +27,7 @@ Write-Host "`n--- Compile ---" -ForegroundColor Yellow
 try { taskkill /F /IM Prism.exe 2>$null | Out-Null } catch {}
 Start-Sleep 1
 Remove-Item $exe -Force -ErrorAction SilentlyContinue
-$result = & $csc /target:winexe /out:$exe /win32manifest:"$base\app.manifest" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:Microsoft.CSharp.dll /reference:System.Management.dll /reference:"$base\native\OpenHardwareMonitorLib.dll" "$base\Common\*.cs" "$base\Common\Debug\Visual\*.cs" "$base\Common\Debug\Info\*.cs" "$base\Components\*.cs" $src 2>&1
+$result = & $csc /target:winexe /out:$exe /win32manifest:"$base\app.manifest" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:Microsoft.CSharp.dll /reference:System.Management.dll /reference:Microsoft.VisualBasic.dll /reference:"$base\native\OpenHardwareMonitorLib.dll" "$base\..\Shared\*.cs" "$base\Common\*.cs" "$base\Common\Debug\Visual\*.cs" "$base\Common\Debug\Info\*.cs" "$base\Components\*.cs" $src 2>&1
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $exe)) {
     Write-Host "FAIL: compile error" -ForegroundColor Red
     $result | Where-Object { $_ -match 'error CS' } | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }

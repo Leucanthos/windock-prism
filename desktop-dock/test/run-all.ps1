@@ -19,22 +19,22 @@ foreach ($name in $cleanupProcs) {
 Start-Sleep 0.5
 
 # Ensure temp directory exists
-if (-not (Test-Path "C:\temp")) { New-Item -ItemType Directory -Path "C:\temp" -Force | Out-Null }
+if (-not (Test-Path $env:TEMP)) { New-Item -ItemType Directory -Path $env:TEMP -Force | Out-Null }
 
 # Test definitions
 $tests = @(
     # C# executable tests — each writes to a specific result file
-    @{Name="Icon Lifecycle";     Type="exe";  Path="$testDir\test-icon-lifecycle.exe";     ResultFile="C:\temp\_test_icon_lifecycle_result.txt";   Timeout=15},
-    @{Name="Layout";             Type="exe";  Path="$testDir\test-layout.exe";             ResultFile="C:\temp\_test_layout_result.txt";           Timeout=15},
-    @{Name="Magnification";      Type="exe";  Path="$testDir\test-magnification.exe";      ResultFile="C:\temp\_test_magnification_result.txt";    Timeout=20},
-    @{Name="Pin/Unpin";          Type="exe";  Path="$testDir\test-pin-unpin.exe";          ResultFile="C:\temp\_test_pinunpin_result.txt";         Timeout=15},
-    @{Name="Theme Switch";       Type="exe";  Path="$testDir\test-theme-switch.exe";       ResultFile="C:\temp\_test_theme_result.txt";            Timeout=15},
-    @{Name="Taskbar Toggle";     Type="exe";  Path="$testDir\test-taskbar-toggle.exe";     ResultFile="C:\temp\_test_taskbar_result.txt";          Timeout=15},
-    @{Name="Context Menu";       Type="exe";  Path="$testDir\test-context-menu.exe";       ResultFile="C:\temp\_test_contextmenu_result.txt";      Timeout=20},
-    @{Name="Badge";              Type="exe";  Path="$testDir\test-badge.exe";              ResultFile="C:\temp\_test_badge_result.txt";            Timeout=15},
-    @{Name="Mutex Singleton";    Type="exe";  Path="$testDir\test-mutex-singleton.exe";    ResultFile="C:\temp\_test_mutex_result.txt";            Timeout=20},
-    @{Name="Coordinates";        Type="exe";  Path="$testDir\test-coordinates.exe";         ResultFile="C:\temp\_test_coordinates_result.txt";      Timeout=20},
-    @{Name="Dock Pin";           Type="exe";  Path="$testDir\test-dock-pin.exe";            ResultFile="C:\temp\_test_dockpin_result.txt";          Timeout=30},
+    @{Name="Icon Lifecycle";     Type="exe";  Path="$testDir\test-icon-lifecycle.exe";     ResultFile="$env:TEMP\_test_icon_lifecycle_result.txt";   Timeout=15},
+    @{Name="Layout";             Type="exe";  Path="$testDir\test-layout.exe";             ResultFile="$env:TEMP\_test_layout_result.txt";           Timeout=15},
+    @{Name="Magnification";      Type="exe";  Path="$testDir\test-magnification.exe";      ResultFile="$env:TEMP\_test_magnification_result.txt";    Timeout=20},
+    @{Name="Pin/Unpin";          Type="exe";  Path="$testDir\test-pin-unpin.exe";          ResultFile="$env:TEMP\_test_pinunpin_result.txt";         Timeout=15},
+    @{Name="Theme Switch";       Type="exe";  Path="$testDir\test-theme-switch.exe";       ResultFile="$env:TEMP\_test_theme_result.txt";            Timeout=15},
+    @{Name="Taskbar Toggle";     Type="exe";  Path="$testDir\test-taskbar-toggle.exe";     ResultFile="$env:TEMP\_test_taskbar_result.txt";          Timeout=15},
+    @{Name="Context Menu";       Type="exe";  Path="$testDir\test-context-menu.exe";       ResultFile="$env:TEMP\_test_contextmenu_result.txt";      Timeout=20},
+    @{Name="Badge";              Type="exe";  Path="$testDir\test-badge.exe";              ResultFile="$env:TEMP\_test_badge_result.txt";            Timeout=15},
+    @{Name="Mutex Singleton";    Type="exe";  Path="$testDir\test-mutex-singleton.exe";    ResultFile="$env:TEMP\_test_mutex_result.txt";            Timeout=20},
+    @{Name="Coordinates";        Type="exe";  Path="$testDir\test-coordinates.exe";         ResultFile="$env:TEMP\_test_coordinates_result.txt";      Timeout=20},
+    @{Name="Dock Pin";           Type="exe";  Path="$testDir\test-dock-pin.exe";            ResultFile="$env:TEMP\_test_dockpin_result.txt";          Timeout=30},
     # PowerShell integration tests — check their own output internally
     @{Name="Line Align";         Type="ps1";  Path="$testDir\line-align.ps1";             Timeout=30},
     @{Name="Startup Dump";       Type="ps1";  Path="$integrationDir\test-startup-dump.ps1";  Timeout=20},
@@ -56,7 +56,7 @@ foreach ($test in $tests) {
     Write-Host "[$($results.Count + 1)/$total] $($test.Name)" -ForegroundColor White
 
     # Use explicit result file path if defined, else derive from test name (for PS tests)
-    $resultFile = if ($test.ResultFile) { $test.ResultFile } else { "C:\temp\_test_$($test.Name -replace '\s+','_')_result.txt" }
+    $resultFile = if ($test.ResultFile) { $test.ResultFile } else { "$env:TEMP\_test_$($test.Name -replace '\s+','_')_result.txt" }
     # Clean previous result
     if (Test-Path $resultFile) { Remove-Item $resultFile -Force }
 

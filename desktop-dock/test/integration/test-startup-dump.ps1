@@ -11,8 +11,8 @@ if (-not (Test-Path $exe)) {
 }
 
 # Clean old dump files
-$startupLog = "C:\temp\_dock_startup.txt"
-$dumpLog    = "C:\temp\_dock_dump.txt"
+$startupLog = "$env:TEMP\_dock_startup.txt"
+$dumpLog    = "$env:TEMP\_dock_dump.txt"
 @($startupLog, $dumpLog) | ForEach-Object { if (Test-Path $_) { Remove-Item $_ -Force } }
 
 # Launch dock in debug mode

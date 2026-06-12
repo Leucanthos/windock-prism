@@ -23,7 +23,9 @@ static class Program
     [STAThread] static void Main(string[] args)
     {
         DebugMode.Init(args);
-        System.IO.File.WriteAllText(@"C:\temp\_dock_startup.txt", "DebugMode="+DebugMode.On);
+        VersionInfo.Init("WinDock");
+        EventLog.Init("WinDock");
+        System.IO.File.WriteAllText(@"$env:TEMP\_dock_startup.txt", "DebugMode="+DebugMode.On);
         SetProcessDPIAware();
 
         var mutexName = @"Global\WinDock_" + VersionInfo.Number + (DebugMode.On ? "_debug" : "");

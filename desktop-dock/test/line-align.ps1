@@ -11,7 +11,7 @@ if (-not (Test-Path $exe)) { Write-Host "FAIL: $exe not found" -ForegroundColor 
 $proc = Start-Process $exe -ArgumentList '--debug' -PassThru
 Start-Sleep 5
 
-$log = "C:\temp\_dock_line.txt"
+$log = "$env:TEMP\_dock_line.txt"
 if (-not (Test-Path $log)) { Write-Host "FAIL: No debug dump at $log" -ForegroundColor Red; $proc.Kill(); exit 1 }
 
 $content = Get-Content $log

@@ -10,7 +10,7 @@ if (-not (Test-Path $exe)) {
     exit 1
 }
 
-$dumpLog = "C:\temp\_dock_dump.txt"
+$dumpLog = "$env:TEMP\_dock_dump.txt"
 if (Test-Path $dumpLog) { Remove-Item $dumpLog -Force }
 
 # Launch dock

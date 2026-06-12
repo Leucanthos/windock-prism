@@ -24,8 +24,8 @@ $existingCount = if ($existingLinks) { $existingLinks.Count } else { 0 }
 Write-Host "Existing pinned shortcuts: $existingCount"
 
 # Test 1: Verify we can create a .lnk via COM
-$tempExe = "C:\temp\_test_pin_dummy.exe"
-if (-not (Test-Path "C:\temp")) { New-Item -ItemType Directory -Path "C:\temp" -Force | Out-Null }
+$tempExe = "$env:TEMP\_test_pin_dummy.exe"
+if (-not (Test-Path $env:TEMP)) { New-Item -ItemType Directory -Path $env:TEMP -Force | Out-Null }
 "dummy" | Out-File $tempExe -Encoding ASCII
 
 $lnkPath = "$pinDir\_test_pin_dummy.lnk"
@@ -61,7 +61,7 @@ if (Test-Path $lnkPath) {
 
 # Launch dock and verify it picks up the pinned app
 Write-Host "Launching WinDock-d.exe --debug..."
-$dumpLog = "C:\temp\_dock_dump.txt"
+$dumpLog = "$env:TEMP\_dock_dump.txt"
 if (Test-Path $dumpLog) { Remove-Item $dumpLog -Force }
 
 $proc = Start-Process $exe -ArgumentList '--debug' -PassThru

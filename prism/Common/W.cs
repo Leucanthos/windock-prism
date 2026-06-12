@@ -1,12 +1,13 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows.Forms;
 
-public static class W
+// ============================================================
+// W — prism-specific Win32 desktop pinning & bar helpers
+// ============================================================
+public static partial class W
 {
-    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int a, ref int v, int s);
     [DllImport("user32.dll")] static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
     [DllImport("user32.dll")] static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
     [DllImport("user32.dll")] static extern IntPtr FindWindowEx(IntPtr hWndParent, IntPtr hWndChildAfter, string lpszClass, string lpszWindow);
@@ -25,29 +26,21 @@ public static class W
     const int WS_EX_NOACTIVATE=0x08000000, WS_EX_TOOLWINDOW=0x80;
     static readonly IntPtr HWND_BOTTOM = (IntPtr)1;
 
-    public static void Round(Form f) { int c=2; DwmSetWindowAttribute(f.Handle,33,ref c,4); }
-
     // ── Desktop placement ────────────────────────────────────
-    // Instead of SetParent (which Windows 11 aggressively resets),
-    // place forms at the bottom of the Z-order and keep them there.
-
-    public static void EnsureWorkerW() { } // no-op for this approach
+    public static void EnsureWorkerW() { }
 
     /// <summary>Place form at desktop level: bottom Z-order, no activate, no taskbar.</summary>
     public static void PinToDesktop(Form f)
     {
         try
         {
-            // Ensure tool window (no taskbar) + no activate on click
             int ex = GetWindowLong(f.Handle, GWL_EXSTYLE);
             SetWindowLong(f.Handle, GWL_EXSTYLE, ex | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
-
-            // Place at bottom of Z-order
             SetWindowPos(f.Handle, HWND_BOTTOM, f.Left, f.Top, f.Width, f.Height,
                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            EventLog.Info("Pin '"+ (f.Text??"?") +"' → HWND_BOTTOM");
+            EventLog.Info("Pin '" + (f.Text ?? "?") + "' → HWND_BOTTOM");
         }
-        catch (Exception ex) { EventLog.Error("Pin: "+ex.Message); }
+        catch (Exception ex) { EventLog.Error("Pin: " + ex.Message); }
     }
 
     /// <summary>Ensure form stays at bottom of Z-order.</summary>
@@ -56,22 +49,33 @@ public static class W
         try
         {
             if (f.IsDisposed || !f.IsHandleCreated) return;
-            // Keep at bottom — windows maximize above it naturally
             SetWindowPos(f.Handle, HWND_BOTTOM, 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
-        catch (Exception ex) { EventLog.Error("Repin: "+ex.Message); }
+        catch (Exception ex) { EventLog.Error("Repin: " + ex.Message); }
     }
 
-    // ── UI helpers ───────────────────────────────────────────
+    // ── Bar / progress UI helpers ────────────────────────────
+    public static Panel Bar(Color fg, int w, int h, int x, int y)
+    {
+        var p = new Panel { Size = new Size(w, h), Location = new Point(x, y), BackColor = Theme.BarBg };
+        var f2 = new Panel { Size = new Size(0, h), Location = new Point(0, 0), BackColor = fg };
+        p.Controls.Add(f2); p.Tag = f2;
+        return p;
+    }
 
-    public static Label Lbl(string t,Font f,Color c,int w,int h,int x,int y){return new Label{Text=t,ForeColor=c,Font=f,AutoSize=false,Size=new Size(w,h),Location=new Point(x,y)};}
-    public static Panel Bar(Color fg,int w,int h,int x,int y){var p=new Panel{Size=new Size(w,h),Location=new Point(x,y),BackColor=Theme.BarBg};var f2=new Panel{Size=new Size(0,h),Location=new Point(0,0),BackColor=fg};p.Controls.Add(f2);p.Tag=f2;return p;}
-    public static void BarSet(Panel bar, int pct){ if(bar!=null&&bar.Tag!=null)((Panel)bar.Tag).Width=pct*bar.Width/100;}
-    public static void BarColor(Panel bar, Color fg){if(bar!=null){bar.BackColor=Theme.BarBg;if(bar.Tag!=null)((Panel)bar.Tag).BackColor=fg;}}
-    static bool dragging; static Point lastPos;
-    public static void MakeDraggable(Form f, params Control[] extras){MouseEventHandler s=(o,e)=>{if(e.Button==MouseButtons.Left){dragging=true;lastPos=Cursor.Position;}};MouseEventHandler m=(o,e)=>{if(dragging){var c=Cursor.Position;f.Location=new Point(f.Location.X+c.X-lastPos.X,f.Location.Y+c.Y-lastPos.Y);lastPos=c;}};MouseEventHandler u=(o,e)=>dragging=false;f.MouseDown+=s;f.MouseMove+=m;f.MouseUp+=u;foreach(var c in extras){c.MouseDown+=s;c.MouseMove+=m;c.MouseUp+=u;}}
-    static Mutex _lockMutex;
-    public static bool Lock(string name){bool ok;_lockMutex=new Mutex(true,name,out ok);return ok;}
-    public static void Unlock(){if(_lockMutex!=null){try{_lockMutex.Close();}catch{}}}
+    public static void BarSet(Panel bar, int pct)
+    {
+        if (bar != null && bar.Tag != null)
+            ((Panel)bar.Tag).Width = pct * bar.Width / 100;
+    }
+
+    public static void BarColor(Panel bar, Color fg)
+    {
+        if (bar != null)
+        {
+            bar.BackColor = Theme.BarBg;
+            if (bar.Tag != null) ((Panel)bar.Tag).BackColor = fg;
+        }
+    }
 }

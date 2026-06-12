@@ -2,6 +2,7 @@
 $ErrorActionPreference = 'Stop'
 $base = (Get-Item (Split-Path $MyInvocation.MyCommand.Path)).Parent.FullName
 $testDir = "$base\test"
+if (Test-Path "$base\..\Shared") { $global:sharedFiles = @(Get-ChildItem "$base\..\Shared\*.cs" | ForEach-Object { $_.FullName }) } else { $global:sharedFiles = @() }
 $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
 if (-not (Test-Path $csc)) {
@@ -20,10 +21,6 @@ Write-Host ""
 $commonFiles = @(
     "$base\UI\DockIcon.cs",
     "$base\Common\Theme.cs",
-    "$base\Common\W.cs",
-    "$base\Common\Version.cs",
-    "$base\Common\DebugMode.cs",
-    "$base\Common\Debug\EventLog.cs",
     "$base\UI\GlassMenu.cs"
 )
 
@@ -124,7 +121,7 @@ foreach ($test in $tests) {
         # Standalone test: only need the test's own .cs file
         $sources = @($csFile)
     } else {
-        $sources = @($csFile) + $commonFiles + $test.ExtraSources
+        $sources = @($csFile) + $sharedFiles + $commonFiles + $test.ExtraSources
     }
 
     $sourcesStr = ($sources | ForEach-Object { """$_""" }) -join " "

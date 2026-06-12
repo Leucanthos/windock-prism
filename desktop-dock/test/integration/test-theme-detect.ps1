@@ -21,7 +21,7 @@ if (-not (Test-Path $exe)) {
     exit 1
 }
 
-$iconDbg = "C:\temp\_icon_debug.txt"
+$iconDbg = "$env:TEMP\_icon_debug.txt"
 if (Test-Path $iconDbg) { Remove-Item $iconDbg -Force }
 
 Write-Host "Launching WinDock-d.exe --debug..."
@@ -53,7 +53,7 @@ if (Test-Path $iconDbg) {
 }
 
 # Alternative: check _dock_startup.txt for theme info
-$startupLog = "C:\temp\_dock_startup.txt"
+$startupLog = "$env:TEMP\_dock_startup.txt"
 if (Test-Path $startupLog) {
     $startupContent = Get-Content $startupLog -Raw
     Write-Host "Startup log:"

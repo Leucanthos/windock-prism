@@ -10,7 +10,7 @@ if (-not (Test-Path $exe)) {
     exit 1
 }
 
-$dumpLog = "C:\temp\_dock_dump.txt"
+$dumpLog = "$env:TEMP\_dock_dump.txt"
 if (Test-Path $dumpLog) { Remove-Item $dumpLog -Force }
 
 # Launch dock
@@ -62,9 +62,9 @@ if ($stableCount -eq $initialCount) {
 
 # Check for crash dumps or errors
 $crashFiles = @(
-    "C:\temp\_dock_dump.txt",
-    "C:\temp\_dock_startup.txt",
-    "C:\temp\_dock_dispose.txt"
+    "$env:TEMP\_dock_dump.txt",
+    "$env:TEMP\_dock_startup.txt",
+    "$env:TEMP\_dock_dispose.txt"
 )
 foreach ($f in $crashFiles) {
     if (Test-Path $f) {

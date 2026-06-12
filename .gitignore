@@ -19,3 +19,10 @@ Desktop.ini
 # Native drivers
 native/*.sys
 
+# Test build artifacts (covered by *.exe above)
+# desktop-dock/test/*.exe (already ignored by root *.exe pattern)
+
+# Python (prism/test/)
+__pycache__/
+*.pyc
+

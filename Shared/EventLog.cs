@@ -2,29 +2,23 @@ using System;
 using System.IO;
 
 // ============================================================
-// EventLog — always-on structured event log for diagnosing
-// real-world user interaction issues.
+// EventLog — always-on structured event log.
+// Call Init("WinDock") or Init("Prism") to set log file path.
 // ============================================================
-
 static class EventLog
 {
-    static string path = @"C:\temp\_dock_events.txt";
+    static string path;
     static object _lock = new object();
 
-    public static void Info(string msg)
+    public static void Init(string appName)
     {
-        Write("INFO", msg);
+        var tmp = Environment.GetEnvironmentVariable("TEMP") ?? @"C:\temp";
+        path = tmp + @"\" + appName + "_events.txt";
     }
 
-    public static void Warn(string msg)
-    {
-        Write("WARN", msg);
-    }
-
-    public static void Error(string msg)
-    {
-        Write("ERROR", msg);
-    }
+    public static void Info(string msg) { Write("INFO", msg); }
+    public static void Warn(string msg) { Write("WARN", msg); }
+    public static void Error(string msg) { Write("ERROR", msg); }
 
     static void Write(string level, string msg)
     {
@@ -39,7 +33,7 @@ static class EventLog
         catch { }
     }
 
-    /// <summary>Write current icon state snapshot (called from DockManager)</summary>
+    /// <summary>Write state snapshot (used by DockManager / widget monitors)</summary>
     public static void DumpIconState(string[] lines)
     {
         try

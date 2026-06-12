@@ -1,4 +1,4 @@
-# pipeline.ps1 — one-click compile + full test suite
+﻿# pipeline.ps1 — one-click compile + full test suite
 # Usage: .\test\pipeline.ps1
 # Exit 0 = all pass, Exit 1 = one or more failures
 
@@ -31,9 +31,9 @@ $buildResult = & $csc /target:winexe /out:$exe /win32manifest:"$base\app.manifes
     /reference:System.Windows.Forms.dll `
     /reference:System.Drawing.dll `
     /reference:Microsoft.CSharp.dll `
-    /reference:System.Management.dll /reference:Microsoft.VisualBasic.dll `
+    /reference:System.Management.dll /reference:Microsoft.VisualBasic.dll /reference:Microsoft.VisualBasic.dll `
     /reference:"$base\native\OpenHardwareMonitorLib.dll" `
-    "$base\Common\*.cs" "$base\Common\Debug\Visual\*.cs" "$base\Common\Debug\Info\*.cs" "$base\Components\*.cs" $src 2>&1
+    "$base\..\Shared\*.cs" "$base\Common\*.cs" "$base\Common\Debug\Visual\*.cs" "$base\Common\Debug\Info\*.cs" "$base\Components\*.cs" $src 2>&1
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  FATAL: Compile failed" -ForegroundColor Red

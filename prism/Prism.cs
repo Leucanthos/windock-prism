@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -48,6 +48,8 @@ static class Program
     [STAThread] static void Main(string[] args)
     {
         DebugMode.Init(args);
+        VersionInfo.Init("Prism");
+        EventLog.Init("Prism");
         var mutexName = @"Global\Prism_" + VersionInfo.Number + (DebugMode.On ? "_debug" : "");
         // Retry: old instance may still be shutting down during font-toggle restart
         for(int retry=0; retry<5; retry++){
