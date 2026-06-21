@@ -26,6 +26,10 @@ static class DockBar
     [DllImport("user32.dll")] static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     const uint WM_CLOSE = 0x0010;
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int a, ref int v, int s);
+    [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+    [DllImport("kernel32.dll")] static extern bool QueryFullProcessImageName(IntPtr hProcess, uint dwFlags, System.Text.StringBuilder lpExeName, ref uint lpdwSize);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr hObject);
+    const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
     const uint GW_HWNDNEXT=2;
     const int GWL_EXSTYLE=-20, WS_EX_TOOLWINDOW=0x80;
@@ -53,12 +57,14 @@ static class DockBar
     // ===== Layout =====
     static void Reposition(){
         int fw = (int)(44 * DockIcon.DpiX / 96f);
-        int sh=Screen.PrimaryScreen.WorkingArea.Height, sw=Screen.PrimaryScreen.WorkingArea.Width;
+        int sh=Screen.PrimaryScreen.Bounds.Height, sw=Screen.PrimaryScreen.Bounds.Width;
         int totalW=Math.Max(icons.Count*(fw+tileGap)-tileGap+20,60);
-        shelf.Width=totalW; shelf.Left=(sw-totalW)/2; shelf.Top=sh-shelfH-16;
+        // Shelf at full width, flush with screen bottom — blocks mouse from reaching
+        // the screen edge so Explorer doesn't detect it and show the taskbar
+        shelf.Top=sh-shelfH; shelf.Left=0; shelf.Width=sw;
         int iconY=shelf.Top-fw+6;
         for(int i=0;i<icons.Count;i++)
-            icons[i].SetBasePos(shelf.Left+10+i*(fw+tileGap),iconY);
+            icons[i].SetBasePos(sw/2 - totalW/2 + 10 + i*(fw+tileGap), iconY);
     }
 
     // ===== Icons =====
@@ -100,7 +106,9 @@ static class DockBar
             if(ex2)continue;
             var di=new DockIcon(logicalTileSize);
             di.HWnd=hWnd;di.Pid=pid;
-            try{using(var ico=Icon.ExtractAssociatedIcon(Process.GetProcessById(pid).MainModule.FileName)){
+            var exePath=GetProcessPathSafe(pid);
+            if(exePath==null)continue;
+            try{using(var ico=Icon.ExtractAssociatedIcon(exePath)){
                 var bmp=DockIcon.IconToBmpAtDpi(ico);if(bmp==null)continue;di.SetIcon(bmp);}}catch{continue;}
             di.SetClick(()=>{if(di.HWnd!=IntPtr.Zero){if(IsIconic(di.HWnd))ShowWindow(di.HWnd,SW_RESTORE);SwitchToThisWindow(di.HWnd,true);}});
             found.Add(di);
@@ -189,4 +197,23 @@ static class DockBar
     public static string GetWinTitle(IntPtr hWnd){var sb=new System.Text.StringBuilder(256);GetWindowText(hWnd,sb,256);return sb.ToString();}
     public static IntPtr FindNextWindow(IntPtr a){return a==IntPtr.Zero?GetTopWindow(IntPtr.Zero):GetWindow(a,GW_HWNDNEXT);}
     public static bool IsVisibleWindow(IntPtr hWnd){if(!IsWindowVisible(hWnd))return false;var sb=new System.Text.StringBuilder(256);GetWindowText(hWnd,sb,256);return sb.Length>0;}
+
+    public static string GetProcessPathSafe(int pid)
+    {
+        try { return Process.GetProcessById(pid).MainModule.FileName; }
+        catch
+        {
+            IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+            if (h == IntPtr.Zero) return null;
+            try
+            {
+                var sb = new System.Text.StringBuilder(260);
+                uint size = 260;
+                if (QueryFullProcessImageName(h, 0, sb, ref size))
+                    return sb.ToString();
+            }
+            finally { CloseHandle(h); }
+            return null;
+        }
+    }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -57,6 +58,12 @@ static class Program
             if(retry==4){MessageBox.Show("Already Running",VersionInfo.FullName+(DebugMode.On?" (debug)":""),MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
             System.Threading.Thread.Sleep(200);
         }
+
+        // Pre-JIT: cache method compilation order for faster cold start
+        try {
+            var tmp = Environment.GetEnvironmentVariable("TEMP") ?? System.IO.Path.GetTempPath();
+            ProfileOptimization.SetProfileRoot(tmp); ProfileOptimization.StartProfile("Prism.jit");
+        } catch { }
 
         // Auto-register for startup
         if(!DebugMode.On) RegisterStartup();

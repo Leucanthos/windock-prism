@@ -1,4 +1,5 @@
 using System;
+using System.Runtime;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -28,6 +29,9 @@ static class Program
         var tmp = Environment.GetEnvironmentVariable("TEMP") ?? System.IO.Path.GetTempPath();
         System.IO.File.WriteAllText(tmp + @"\_dock_startup.txt", "DebugMode="+DebugMode.On);
         SetProcessDPIAware();
+
+        // Pre-JIT: cache method compilation order for faster cold start
+        try { ProfileOptimization.SetProfileRoot(tmp); ProfileOptimization.StartProfile("WinDock.jit"); } catch { }
 
         var mutexName = @"Global\WinDock_" + VersionInfo.Number + (DebugMode.On ? "_debug" : "");
         if (!W.Lock(mutexName))

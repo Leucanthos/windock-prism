@@ -341,11 +341,59 @@
   <tr><th>#</th><th>需求</th><th>细节</th><th>状态</th></tr>
   <tr><td>4.1</td><td>位置</td><td>底部居中 (release) / 顶部 Y=40 (debug)</td><td class="done">✓</td></tr>
   <tr><td>4.2</td><td>布局间距</td><td>LayoutEngine GAP=14px</td><td class="done">✓</td></tr>
-  <tr><td>4.3</td><td>任务栏控制</td><td>FindWindow("Shell_TrayWnd") → ShowWindow</td><td class="done">✓</td></tr>
+  <tr><td>4.3</td><td>任务栏隐藏</td><td>ShowWindow → ABM_REMOVE → Edge Guard</td><td class="done">✓</td></tr>
+  <tr><td>4.3a</td><td>工作区释放
+    <span class="info-dot impl">i
+      <div class="info-card"><h4>实现</h4>
+        <p><strong>ABM_REMOVE</strong>：<code>SHAppBarMessage(ABM_REMOVE, tb)</code> 取消任务栏的 appbar 注册，Windows 释放预留的 48px 工作区。此前 <code>SPI_SETWORKAREA</code> 尝试失败——系统会立即还原。</p>
+        <p><strong>恢复</strong>：<code>ABM_NEW</code> + <code>ABE_BOTTOM</code> 重新注册任务栏为底部 appbar，再 ShowWindow。</p>
+        <p><strong>守护</strong>：themePoll 每 400ms 检查任务栏是否可见，可见则 <code>ShowWindow(tb, 0)</code>。</p>
+      </div>
+    </span>
+    <span class="info-dot pitfall">!
+      <div class="info-card pitfall-card"><h4>踩坑</h4>
+        <p><strong>SPI_SETWORKAREA 无效</strong>：设置后工作区确实变成全屏，但系统（Explorer）会立即重新计算并还原。这是 Windows 的预期行为——只有注册的 appbar 才能稳定修改工作区。</p>
+        <p><strong>ABS_AUTOHIDE 的副作用</strong>：<code>ABM_SETSTATE(ABS_AUTOHIDE)</code> 能释放工作区，但同时启用任务栏自动弹出——鼠标触底时 Explorer 会 ShowWindow 任务栏，虽可在 400ms 内藏回但有闪烁。</p>
+        <p><strong>ABM_REMOVE 后任务栏仍可弹出</strong>：Explorer.exe 内部管理任务栏窗口，不依赖 appbar 注册状态。鼠标触底时 Explorer 仍然 ShowWindow 任务栏。</p>
+      </div>
+    </span>
+  </td><td class="done">✓</td></tr>
+  <tr><td>4.3b</td><td>Edge Guard
+    <span class="info-dot impl">i
+      <div class="info-card"><h4>实现</h4>
+        <p><strong>透明守护条</strong>：全宽 4px <code>TopMost</code> 透明 Form，贴在屏幕底部（Y = Bounds.Height - 4）。鼠标进入底部区域时落在守护条上，Explorer 检测不到屏幕边缘，不会触发任务栏弹出。</p>
+        <p><code>BackColor=Black</code> + <code>TransparencyKey=Black</code> 实现完全透明，<code>ShowInTaskbar=false</code> 不在任务栏显示。</p>
+        <p>关闭 dock 时 <code>edgeGuard.Close()</code> 销毁。</p>
+      </div>
+    </span>
+    <span class="info-dot pitfall">!
+      <div class="info-card pitfall-card"><h4>踩坑</h4>
+        <p><strong>DockBar 死代码陷阱</strong>：<code>DockBar.Create()</code> 从未被调用，导致分析时误以为 shelf Form 可以遮挡底部。实际运行的是 <code>DockManager.Create()</code>，它只有一个 invisible anchor form，底部完全没有遮挡。</p>
+        <p><strong>Off-screen SetWindowPos 不防弹出</strong>：把任务栏窗口移到屏幕外（Y+100）后，Explorer 在鼠标触底时仍然将其 ShowWindow 回原位。Explorer 的鼠标边缘检测是基于屏幕坐标的，不依赖窗口位置。</p>
+      </div>
+    </span>
+  </td><td class="done">✓</td></tr>
   <tr><td>4.4</td><td>主题</td><td>2s 轮询 SystemUsesLightTheme + Hash 噪声玻璃</td><td class="done">✓</td></tr>
   <tr><td>4.5</td><td>DPI</td><td>SetProcessDPIAware + GetDeviceCaps</td><td class="done">✓</td></tr>
   <tr><td>4.6</td><td>多显示器</td><td>GetCursorPos 检测，Dock 跟随</td><td class="done">✓</td></tr>
   <tr><td>4.7</td><td>崩溃恢复</td><td>UnhandledException → 写 crash 文件 → 恢复任务栏</td><td class="done">✓</td></tr>
+  <tr><td>4.8</td><td>最大化自动隐藏
+    <span class="info-dot impl">i
+      <div class="info-card"><h4>实现</h4>
+        <p><strong>Opacity 控制</strong>：themePoll 每 400ms 枚举所有可见非自有窗口，检查 <code>IsZoomed()</code>。发现最大化窗口时设所有图标 <code>Opacity=0.0</code>，无最大化时恢复 <code>0.82</code>。用 Opacity 而非 Show/Hide —— 不需要重建布局。</p>
+        <p>排除自有进程（<code>ownPid</code>），dock 自身的图标不会误触发隐藏。</p>
+        <p>与 Edge Guard（4.3b）协同：最大化窗口本身遮挡屏幕底部，Edge Guard 是否 TopMost 不影响效果。</p>
+      </div>
+    </span>
+    <span class="info-dot pitfall">!
+      <div class="info-card pitfall-card"><h4>踩坑</h4>
+        <p><strong>TopMost 方案失败</strong>：设 <code>TopMost=false</code> 后 dock 仍在前面——非 topmost 窗口按激活 Z 序排列，用户点击最大化的窗口不会把 dock 压下去。</p>
+        <p><strong>HWND_BOTTOM + WS_EX_TRANSPARENT 方案也不够</strong>：鼠标穿透了但 dock 依然可见（在 Z 序顶部），因为新建图标通过 <code>Show()</code> 会自动取得焦点。</p>
+        <p><strong>检查位置关键</strong>：auto-layer 必须放在 themePoll 最末尾——FgAdd/StaleRemove/LayoutWithLock 都会在同一个 400ms 周期内创建新图标（<code>DockIcon</code> 构造函数设 <code>Opacity=0.82</code>），先检查的话这些新图标不会被隐藏。</p>
+        <p><strong>仅检查前景不够</strong>：dock 图标在最上层时 <code>GetForegroundWindow()</code> 返回 dock 自己的 Form → <code>IsZoomed</code> 返回 false → 永远不隐藏。需枚举所有可见窗口。</p>
+      </div>
+    </span>
+  </td><td class="done">✓</td></tr>
 </table>
 
 <!-- ============================================================ -->

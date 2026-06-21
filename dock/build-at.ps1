@@ -64,8 +64,9 @@ try {
     $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
     $srcsStr = ($files | ForEach-Object { """$_""" }) -join " "
     $refs = "/reference:System.Windows.Forms.dll /reference:System.Drawing.dll"
+    $icon = "/win32icon:""$base\assets\Windock.ico"""
     $tmpExe = Join-Path $env:TEMP "WD-$([Guid]::NewGuid().ToString('N')).exe"
-    $result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$tmpExe"" $refs $srcsStr 2>&1"
+    $result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$tmpExe"" $icon $refs $srcsStr 2>&1"
     if (Test-Path $tmpExe) {
         Copy-Item $tmpExe "$base\WinDock.exe" -Force
         Write-Host "csc fallback OK, running from TEMP" -ForegroundColor Green

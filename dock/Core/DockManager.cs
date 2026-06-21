@@ -26,15 +26,17 @@ static class DockManager
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr p, IntPtr a, string c, string t);
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int n);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr hWnd);
     [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT pt);
 
     const uint GW_HWNDNEXT = 2;
-    const int GWL_EXSTYLE = -20, WS_EX_TOOLWINDOW = 0x80;
+    const int GWL_EXSTYLE = -20, GWL_STYLE = -16, WS_EX_TOOLWINDOW = 0x80, WS_CHILD = 0x40000000, WS_CAPTION = 0x00C00000;
 
     struct POINT { public int X, Y; }
     struct RECT { public int Left, Top, Right, Bottom; public int Width { get { return Right - Left; } } public int Height { get { return Bottom - Top; } } }
 
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
     [DllImport("user32.dll")] static extern void SwitchToThisWindow(IntPtr hWnd, bool f);
@@ -96,12 +98,14 @@ static class DockManager
     static int _spyStartTick; // set in Create() for 90s spy window
 
     // ===== State =====
-    static Form lineForm;
+    static Form lineForm, edgeGuard;
     static List<DockIcon> icons = new List<DockIcon>();
     static System.Windows.Forms.Timer themePoll, watchdogTimer;
     static NotifyIcon trayIcon;
     static bool dockVisible = true;
+    static bool dockOnTop = true;
     static int foregroundPid;
+    static int lastPinCount = 0;
     static int ownPid = System.Diagnostics.Process.GetCurrentProcess().Id;
 
     class WindowInfo { public IntPtr HWnd; public int Pid; public string Title; }
@@ -135,20 +139,32 @@ static class DockManager
             RestoreTaskbar();
             foreach (var ic in icons) ic.Dispose();
             icons.Clear();
+            if (edgeGuard != null) { edgeGuard.Close(); edgeGuard.Dispose(); edgeGuard = null; }
         };
 
         lineForm.Shown += (s, e) =>
         {
             HideTaskbar();
-            FullRefresh(); Layout();
+            Layout(); // position empty dock immediately
+            // Edge guard: transparent 4px strip at bottom blocks mouse from reaching
+            // the screen edge, preventing Explorer from showing the hidden taskbar
+            var scr = Screen.PrimaryScreen.Bounds;
+            edgeGuard = new Form { Size = new Size(scr.Width, 4), Location = new Point(0, scr.Height - 4),
+                FormBorderStyle = FormBorderStyle.None, TopMost = true, ShowInTaskbar = false,
+                BackColor = Color.Black, TransparencyKey = Color.Black };
+            edgeGuard.Show();
             lineForm.BeginInvoke((Action)delegate {
                 trayIcon = new NotifyIcon { Text = "WinDock", Icon = appIcon ?? SystemIcons.Shield, Visible = true };
                 trayIcon.Click += (s2, e2) => Toggle();
             });
             // V3: Subscribe to hover events for elastic lens
             DockIcon.HoverChanged += SpreadLensEffect;
-            // Start theme + foreground poll AFTER initial refresh (avoid race)
+            // Start theme + foreground poll
             if (themePoll != null) themePoll.Start();
+            // Defer heavy FullRefresh so dock shell appears instantly
+            var deferTimer = new System.Windows.Forms.Timer { Interval = 200 };
+            deferTimer.Tick += (s2, e2) => { deferTimer.Stop(); deferTimer.Dispose(); FullRefresh(); Layout(); };
+            deferTimer.Start();
         };
 
         // Badge refresh — update counts periodically without full icon recreation
@@ -274,6 +290,13 @@ static class DockManager
         themePoll = new System.Windows.Forms.Timer { Interval = 400 };
         themePoll.Tick += (s, e) =>
         {
+            // Taskbar guard: keep hidden (Explorer may show it on mouse edge)
+            if (dockVisible) { var tb = FindWindow("Shell_TrayWnd", null); if (tb != IntPtr.Zero && IsWindowVisible(tb)) ShowWindow(tb, 0); }
+
+            // Pin watch: reload PinStore periodically, refresh if pins changed
+            int prevCount = 0; foreach (var _ in PinStore.PinnedPaths) prevCount++;
+            if (prevCount != lastPinCount) { lastPinCount = prevCount; PinStore.Load(); int newCount = 0; foreach (var _ in PinStore.PinnedPaths) newCount++; if (newCount != prevCount) { FullRefresh(); Layout(); } }
+
             // Theme check
             var light = (int)(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "SystemUsesLightTheme", 0) ?? 0) == 1;
             if (light != Theme.IsLight)
@@ -330,8 +353,7 @@ static class DockManager
                     // inactive icon matches — if so, just update that icon to running.
                     bool known = false;
                     DockIcon matchedPinned = null;
-                    string fgExePath = "";
-                    try { fgExePath = Process.GetProcessById(fgPid).MainModule.FileName; } catch { }
+                    string fgExePath = DockBar.GetProcessPathSafe(fgPid) ?? "";
 
                     foreach (var di in icons)
                     {
@@ -361,7 +383,10 @@ static class DockManager
                             // V2: unified exclusion list (keep in sync with FullRefresh below)
                             if (pn != "explorer" && pn != "searchapp" && pn != "textinputhost"
                                 && pn != "shellexperiencehost" && pn != "clicktodo" && pn != "systemsettings"
-                                && pn != "steamwebhelper" && pn != "steamservice")
+                                && pn != "steamwebhelper" && pn != "steamservice"
+                                && pn != "searchhost" && pn != "windock"
+                                && pn != "lsf" && pn != "smartenginetray"
+                                && pn != "lockapp")
                             {
                                 // V2: check if new foreground process is a child/helper of an already-tracked app.
                                 // If any existing icon's pinned path basename is a prefix of this process name
@@ -392,22 +417,27 @@ static class DockManager
                                 }
                                 if (!isHelperOfTracked)
                                 {
-                                    // V2: Only create icon if foreground window IS the process main window.
-                                    // This filters out dialog boxes, popups, and child windows.
-                                    IntPtr mainHwnd = IntPtr.Zero;
-                                    try { mainHwnd = p.MainWindowHandle; } catch { }
-                                    if (mainHwnd != IntPtr.Zero && fg == mainHwnd)
+                                    // PID match + valid exe + has caption + not child + reasonable size
+                                    // (Don't require fg == MainWindowHandle — Taskmgr reports a different one)
+                                    int fgPidCheck; GetWindowThreadProcessId(fg, out fgPidCheck);
+                                    if (fgPidCheck == fgPid && !string.IsNullOrEmpty(fgExePath))
                                     {
-                                        var di = CreateRunningIcon(fg, fgPid);
-                                        if (di != null)
+                                        int fgStyle = GetWindowLong(fg, GWL_STYLE);
+                                        RECT fgRect; GetWindowRect(fg, out fgRect);
+                                        if ((fgStyle & WS_CHILD) == 0
+                                            && fgRect.Width >= 150 && fgRect.Height >= 80)
                                         {
-                                            EventLog.Info("FgAdd pid=" + fgPid + " proc=" + pn + " exe=" + (fgExePath ?? "?"));
-                                            di.SetTooltip(GetWinTitle(fg));
-                                            di.SetBadge(CountWindows(fgPid));
-                                            BindRightClick(di);
-                                            icons.Add(di);
-                                            di.Show();
-                                            LayoutWithLock();
+                                            var di = CreateRunningIcon(fg, fgPid);
+                                            if (di != null)
+                                            {
+                                                EventLog.Info("FgAdd pid=" + fgPid + " proc=" + pn + " exe=" + (fgExePath ?? "?"));
+                                                di.SetTooltip(GetWinTitle(fg));
+                                                di.SetBadge(CountWindows(fgPid));
+                                                BindRightClick(di);
+                                                icons.Add(di);
+                                                di.Show();
+                                                LayoutWithLock();
+                                            }
                                         }
                                     }
                                 }
@@ -415,6 +445,34 @@ static class DockManager
                         } catch { }
                     }
                 }
+            }
+
+            // Auto-layer (MUST run last — after FgAdd/StaleRemove may create new TopMost=true icons)
+            if (dockVisible) {
+                bool anyMax = false; string maxTitle = "";
+                IntPtr hw = IntPtr.Zero;
+                while ((hw = FindNextWindow(hw)) != IntPtr.Zero) {
+                    int pid; GetWindowThreadProcessId(hw, out pid);
+                    if (pid == 0 || pid == ownPid) continue;
+                    if (IsWindowVisible(hw) && IsZoomed(hw)) {
+                        anyMax = true;
+                        var sb = new System.Text.StringBuilder(256); GetWindowText(hw, sb, 256); maxTitle = sb.ToString();
+                        break;
+                    }
+                }
+                bool wantVisible = !anyMax;
+                int changed = 0;
+                double targetOpacity = wantVisible ? 0.82 : 0.0;
+                foreach (var di in icons) {
+                    try {
+                        if (di.Form == null || di.Form.IsDisposed) continue;
+                        if (System.Math.Abs(di.Form.Opacity - targetOpacity) > 0.01) {
+                            di.Form.Opacity = targetOpacity; changed++;
+                        }
+                    } catch { }
+                }
+                if (changed > 0) EventLog.Info("Layer: anyMax=" + anyMax + " changed=" + changed + " opacity=" + targetOpacity + " maxWin=" + (maxTitle.Length > 30 ? maxTitle.Substring(0,30) : maxTitle));
+                dockOnTop = wantVisible;
             }
         };
 
@@ -554,7 +612,9 @@ static class DockManager
                 string pn = p.ProcessName.ToLower();
                 if (pn == "explorer" || pn == "searchapp" || pn == "textinputhost"
                     || pn == "shellexperiencehost" || pn == "clicktodo" || pn == "systemsettings"
-                    || pn == "steamwebhelper" || pn == "steamservice") continue;
+                    || pn == "steamwebhelper" || pn == "steamservice"
+                    || pn == "lsf" || pn == "smartenginetray"
+                    || pn == "lockapp") continue;
             }
             catch { continue; }
             if (!winInfo.ContainsKey(pid) || t.Length > winInfo[pid].Title.Length)
@@ -822,17 +882,42 @@ static class DockManager
     }
 
     // ===== Taskbar =====
+    [DllImport("shell32.dll")] static extern IntPtr SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
+    const uint ABM_REMOVE = 1, ABM_NEW = 0;
+    const uint ABE_BOTTOM = 3;
+    struct APPBARDATA { public int cbSize; public IntPtr hWnd; public uint uCallbackMessage; public uint uEdge; public RECT rc; public IntPtr lParam; }
+
     static void HideTaskbar()
     {
         if (DebugMode.On) return;
         var tb = FindWindow("Shell_TrayWnd", null);
-        if (tb != IntPtr.Zero) ShowWindow(tb, 0);
+        if (tb != IntPtr.Zero)
+        {
+            // Unregister taskbar as appbar → releases reserved work area
+            var abd = new APPBARDATA();
+            abd.cbSize = Marshal.SizeOf(abd);
+            abd.hWnd = tb;
+            SHAppBarMessage(ABM_REMOVE, ref abd);
+            // Move off-screen so Explorer can't show it even if it tries
+            ShowWindow(tb, 0);
+            int h = Screen.PrimaryScreen.Bounds.Height;
+            SetWindowPos(tb, IntPtr.Zero, 0, h + 100, 0, 0, 0x0001 | 0x0004 | 0x0010);
+        }
     }
 
     static void RestoreTaskbar()
     {
         var tb = FindWindow("Shell_TrayWnd", null);
-        if (tb != IntPtr.Zero) ShowWindow(tb, 5);
+        if (tb != IntPtr.Zero)
+        {
+            // Re-register taskbar as bottom-edge appbar
+            var abd = new APPBARDATA();
+            abd.cbSize = Marshal.SizeOf(abd);
+            abd.hWnd = tb;
+            abd.uEdge = ABE_BOTTOM;
+            SHAppBarMessage(ABM_NEW, ref abd);
+            ShowWindow(tb, 5);
+        }
     }
 
     // ===== Special icons =====
@@ -1028,9 +1113,10 @@ static class DockManager
     {
         var di = new DockIcon(44, 8);
         di.HWnd = hWnd; di.Pid = pid;
+        var exePath = DockBar.GetProcessPathSafe(pid);
+        if (exePath == null) return null;
         try {
-            var p = Process.GetProcessById(pid);
-            using (var ico = Icon.ExtractAssociatedIcon(p.MainModule.FileName)) {
+            using (var ico = Icon.ExtractAssociatedIcon(exePath)) {
                 var bmp = DockIcon.IconToBmpAtDpi(ico); if (bmp == null) return null; di.SetIcon(bmp);
             }
         } catch { return null; }

@@ -16,15 +16,18 @@ $sources = @(
 
 $sourcesStr = ($sources | ForEach-Object { """$_""" }) -join " "
 $refs = "/reference:System.Windows.Forms.dll /reference:System.Drawing.dll"
+$icon = "/win32icon:""$base\assets\Windock.ico"""
 
-# Compile to TEMP, run from TEMP to avoid WDAC hash check on project folder
+# Compile to TEMP first (bypass WDAC), then copy to dock/ and run as WinDock.exe
 $tmpExe = Join-Path $env:TEMP "WD-$([Guid]::NewGuid().ToString('N')).exe"
 Write-Host "Compiling to $tmpExe ..."
-$result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$tmpExe"" $refs $sourcesStr 2>&1"
+$result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$tmpExe"" $icon $refs $sourcesStr 2>&1"
 if ($LASTEXITCODE -ne 0) { Write-Host "FAIL: $result" -ForegroundColor Red; exit 1 }
 
-Write-Host "OK: $tmpExe ($((Get-Item $tmpExe).Length) bytes)"
-Write-Host "Running from TEMP..."
-Start-Process $tmpExe
+$outExe = "$base\WinDock.exe"
+Copy-Item $tmpExe $outExe -Force; Remove-Item $tmpExe -Force
+Write-Host "OK: $outExe ($((Get-Item $outExe).Length) bytes)"
+Write-Host "Launching WinDock..."
+Start-Process $outExe
 Start-Sleep 4
-Get-Process 'WD-*' -ErrorAction SilentlyContinue | Select-Object Id,ProcessName
+Get-Process WinDock -ErrorAction SilentlyContinue | Select-Object Id,ProcessName
