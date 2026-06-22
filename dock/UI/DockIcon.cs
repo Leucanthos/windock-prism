@@ -32,8 +32,6 @@ class DockIcon : IDisposable
     public Form Form;
     public PictureBox pic;
     ToolTip toolTip;
-    Action onCloseAction, onTogglePinAction;
-    Func<bool> isPinnedCheck;
     int baseSize, pad, curSize;
     public int BaseX;
     public IntPtr HWnd;
@@ -164,18 +162,6 @@ class DockIcon : IDisposable
     public void SetTooltip(string text){
         if(toolTip==null){toolTip=new ToolTip{ShowAlways=true,InitialDelay=200};toolTip.SetToolTip(pic,text);}
         else toolTip.SetToolTip(pic,text);
-    }
-    public void SetRightClickActions(Action onClose, Action onTogglePin, Func<bool> isPinned){
-        onCloseAction=onClose; onTogglePinAction=onTogglePin; isPinnedCheck=isPinned;
-        pic.MouseUp+=(s,e)=>{
-            if(e.Button!=MouseButtons.Right)return;
-            bool pinned=isPinnedCheck();
-            var menu=new GlassMenu(
-                new GlassMenu.Item("关闭窗口", onCloseAction, true),
-                new GlassMenu.Item(pinned?"从任务栏取消固定":"固定到任务栏", onTogglePinAction, true)
-            );
-            menu.Show(pic.PointToScreen(e.Location));
-        };
     }
     public void Show(){
         if (Form == null || Form.IsDisposed) return;

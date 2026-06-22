@@ -248,6 +248,18 @@
   <tr><td>2.2.1</td><td>读取系统固定</td><td>扫描 <code>User Pinned\TaskBar\*.lnk</code></td><td class="done">✓</td></tr>
   <tr><td>2.2.2</td><td>匹配合并</td><td>三级：全路径 → 进程名 → StartsWith</td><td class="done">✓</td></tr>
   <tr><td>2.2.3</td><td>固定/取消</td><td>右键菜单 → PinStore.Pin/Unpin</td><td class="done">✓</td></tr>
+  <tr><td>2.2.4</td><td>外部 Pin 感知
+    <span class="info-dot impl">i
+      <div class="info-card"><h4>实现</h4>
+        <p>themePoll 每 400ms 比较 <code>PinStore.PinnedPaths</code> 计数。变化时重新 Load + FullRefresh。外部创建/删除 .lnk 秒感知，无需手动 Toggle。</p>
+      </div>
+    </span>
+    <span class="info-dot pitfall">!
+      <div class="info-card pitfall-card"><h4>踩坑</h4>
+        <p><strong>外部 Pin 不刷新</strong>：脚本/文件管理器创建 .lnk 后 dock 不知道，必须等下次 Toggle。修复：400ms Pin 计数检测 + 自动 FullRefresh。</p>
+      </div>
+    </span>
+  </td><td class="done">✓</td></tr>
 </table>
 
 <h3>2.3 后台进程检测 + 点击恢复
@@ -402,9 +414,8 @@
   <tr><th>#</th><th>需求</th><th>优先级</th></tr>
   <tr><td>5.1</td><td>右键菜单视觉重设计</td><td class="wip">中</td></tr>
   <tr><td>5.2</td><td>Drag & Drop 排序</td><td class="pending">低</td></tr>
-  <tr><td>5.3</td><td>独立图标透明度</td><td class="pending">低</td></tr>
-  <tr><td>5.4</td><td>托盘图标移出溢出区</td><td class="pending">低</td></tr>
-  <tr><td>5.5</td><td>Dock 位置可配置</td><td class="pending">低</td></tr>
+  <tr><td>5.3</td><td>托盘图标移出溢出区</td><td class="pending">低</td></tr>
+  <tr><td>5.4</td><td>Dock 位置可配置</td><td class="pending">低</td></tr>
 </table>
 
 <!-- ============================================================ -->

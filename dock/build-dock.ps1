@@ -1,5 +1,4 @@
-# build-dock.ps1 — compile WinDock (debug + release)
-# Compiles to %TEMP% first to bypass WDAC hash block, then copies to dock/.
+# build-dock.ps1 — compile WinDock (debug + release) directly to dock/
 $ErrorActionPreference = 'Stop'
 $base = (Get-Item (Split-Path $MyInvocation.MyCommand.Path)).FullName
 $sharedDir = "$base\..\Shared"
@@ -10,12 +9,13 @@ if (-not (Test-Path $csc)) {
 }
 
 $sources = @(
-    "$sharedDir\DebugMode.cs", "$sharedDir\EventLog.cs", "$sharedDir\Overlay.cs",
+    "$sharedDir\DebugMode.cs", "$sharedDir\EventLog.cs",
     "$sharedDir\Version.cs", "$sharedDir\W.cs",
     "$base\App.cs",
-    "$base\Core\DockBar.cs", "$base\Core\DockLine.cs", "$base\Core\DockManager.cs",
+    "$base\Win32\User32.cs", "$base\Win32\Shell32.cs", "$base\Win32\Kernel32.cs", "$base\Win32\Structs.cs",
+    "$base\Core\DockBar.cs", "$base\Core\DockManager.cs", "$base\Core\AppBarManager.cs",
     "$base\Core\LayoutEngine.cs", "$base\Core\PinStore.cs",
-    "$base\UI\DockIcon.cs", "$base\UI\GlassMenu.cs", "$base\UI\IconMenu.cs",
+    "$base\UI\DockIcon.cs", "$base\UI\IconMenu.cs",
     "$base\Common\Theme.cs"
 )
 
@@ -24,19 +24,15 @@ $refs = "/reference:System.Windows.Forms.dll /reference:System.Drawing.dll"
 $icon = "/win32icon:""$base\assets\Windock.ico"""
 
 # Build debug version
-$tmpDebug = Join-Path $env:TEMP "WD-d-$([Guid]::NewGuid().ToString('N')).exe"
 Write-Host "Compiling WinDock-d.exe (debug)..." -ForegroundColor Cyan
-$result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$tmpDebug"" /define:DEBUG $icon $refs $sourcesStr 2>&1"
+$result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$base\WinDock-d.exe"" /define:DEBUG $icon $refs $sourcesStr 2>&1"
 if ($LASTEXITCODE -ne 0) { Write-Host "FAIL: $result" -ForegroundColor Red; exit 1 }
-Copy-Item $tmpDebug "$base\WinDock-d.exe" -Force; Remove-Item $tmpDebug -Force
 Write-Host "  OK: $base\WinDock-d.exe ($((Get-Item "$base\WinDock-d.exe").Length) bytes)" -ForegroundColor Green
 
 # Build release version
-$tmpRelease = Join-Path $env:TEMP "WD-$([Guid]::NewGuid().ToString('N')).exe"
 Write-Host "Compiling WinDock.exe (release)..." -ForegroundColor Cyan
-$result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$tmpRelease"" /optimize $icon $refs $sourcesStr 2>&1"
+$result = Invoke-Expression "& ""$csc"" /target:winexe /out:""$base\WinDock.exe"" /optimize $icon $refs $sourcesStr 2>&1"
 if ($LASTEXITCODE -ne 0) { Write-Host "FAIL: $result" -ForegroundColor Red; exit 1 }
-Copy-Item $tmpRelease "$base\WinDock.exe" -Force; Remove-Item $tmpRelease -Force
 Write-Host "  OK: $base\WinDock.exe ($((Get-Item "$base\WinDock.exe").Length) bytes)" -ForegroundColor Green
 
 Write-Host ""

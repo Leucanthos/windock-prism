@@ -15,7 +15,7 @@ static class DockManager
     // ===== P/Invoke for window enumeration =====
     [DllImport("user32.dll")] static extern IntPtr GetTopWindow(IntPtr h);
     [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
-    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+    
     [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
     [DllImport("user32.dll")] static extern int GetWindowText(IntPtr h, System.Text.StringBuilder t, int c);
     [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int idx);
@@ -32,9 +32,6 @@ static class DockManager
     const uint GW_HWNDNEXT = 2;
     const int GWL_EXSTYLE = -20, GWL_STYLE = -16, WS_EX_TOOLWINDOW = 0x80, WS_CHILD = 0x40000000, WS_CAPTION = 0x00C00000;
 
-    struct POINT { public int X, Y; }
-    struct RECT { public int Left, Top, Right, Bottom; public int Width { get { return Right - Left; } } public int Height { get { return Bottom - Top; } } }
-
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -45,7 +42,6 @@ static class DockManager
     [DllImport("user32.dll")] static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     // WH_GETMESSAGE hook for intercepting WeChat WM_CLOSE
-    delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int idHook, HookProc lpfn,
         IntPtr hMod, uint dwThreadId);
     [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hhk);
@@ -54,8 +50,6 @@ static class DockManager
     [DllImport("user32.dll")] static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int nIndex);
 
-    struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
-    struct INPUT { public uint type; public MOUSEINPUT mi; }
     const uint INPUT_MOUSE = 0;
     const uint MOUSEEVENTF_MOVE = 0x0001;
     const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
@@ -86,9 +80,6 @@ static class DockManager
     [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr procId);
 
-    [StructLayout(LayoutKind.Sequential)]
-    struct MSG { public IntPtr hwnd; public uint message; public IntPtr wParam; public IntPtr lParam; public uint time; public int pt_x; public int pt_y; }
-
     const int WH_GETMESSAGE = 3;
     const uint WM_SYSCOMMAND = 0x0112;
     const int SC_CLOSE = 0xF060;
@@ -98,7 +89,7 @@ static class DockManager
     static int _spyStartTick; // set in Create() for 90s spy window
 
     // ===== State =====
-    static Form lineForm, edgeGuard;
+    static Form lineForm;
     static List<DockIcon> icons = new List<DockIcon>();
     static System.Windows.Forms.Timer themePoll, watchdogTimer;
     static NotifyIcon trayIcon;
@@ -136,23 +127,19 @@ static class DockManager
         lineForm.FormClosed += (s, e) =>
         {
             if (wxMsgHookHandle != IntPtr.Zero) { UnhookWindowsHookEx(wxMsgHookHandle); wxMsgHookHandle = IntPtr.Zero; }
-            RestoreTaskbar();
+            AppBarManager.RestoreTaskbar();
             foreach (var ic in icons) ic.Dispose();
             icons.Clear();
-            if (edgeGuard != null) { edgeGuard.Close(); edgeGuard.Dispose(); edgeGuard = null; }
+            AppBarManager.DestroyEdgeGuard();
         };
 
         lineForm.Shown += (s, e) =>
         {
-            HideTaskbar();
+            AppBarManager.HideTaskbar();
             Layout(); // position empty dock immediately
             // Edge guard: transparent 4px strip at bottom blocks mouse from reaching
             // the screen edge, preventing Explorer from showing the hidden taskbar
-            var scr = Screen.PrimaryScreen.Bounds;
-            edgeGuard = new Form { Size = new Size(scr.Width, 4), Location = new Point(0, scr.Height - 4),
-                FormBorderStyle = FormBorderStyle.None, TopMost = true, ShowInTaskbar = false,
-                BackColor = Color.Black, TransparencyKey = Color.Black };
-            edgeGuard.Show();
+            AppBarManager.CreateEdgeGuard();
             lineForm.BeginInvoke((Action)delegate {
                 trayIcon = new NotifyIcon { Text = "WinDock", Icon = appIcon ?? SystemIcons.Shield, Visible = true };
                 trayIcon.Click += (s2, e2) => Toggle();
@@ -291,7 +278,7 @@ static class DockManager
         themePoll.Tick += (s, e) =>
         {
             // Taskbar guard: keep hidden (Explorer may show it on mouse edge)
-            if (dockVisible) { var tb = FindWindow("Shell_TrayWnd", null); if (tb != IntPtr.Zero && IsWindowVisible(tb)) ShowWindow(tb, 0); }
+            if (dockVisible) AppBarManager.GuardTaskbar();
 
             // Pin watch: reload PinStore periodically, refresh if pins changed
             int prevCount = 0; foreach (var _ in PinStore.PinnedPaths) prevCount++;
@@ -454,7 +441,7 @@ static class DockManager
                 while ((hw = FindNextWindow(hw)) != IntPtr.Zero) {
                     int pid; GetWindowThreadProcessId(hw, out pid);
                     if (pid == 0 || pid == ownPid) continue;
-                    if (IsWindowVisible(hw) && IsZoomed(hw)) {
+                    if (User32.IsWindowVisible(hw) && IsZoomed(hw)) {
                         anyMax = true;
                         var sb = new System.Text.StringBuilder(256); GetWindowText(hw, sb, 256); maxTitle = sb.ToString();
                         break;
@@ -483,15 +470,15 @@ static class DockManager
             if (dockVisible) return;
             // If dock says it's hidden but dock forms are visible, something went wrong
             var tb = FindWindow("Shell_TrayWnd", null);
-            if (tb != IntPtr.Zero && !IsWindowVisible(tb))
-                RestoreTaskbar(); // safety restore
+            if (tb != IntPtr.Zero && !User32.IsWindowVisible(tb))
+                AppBarManager.RestoreTaskbar(); // safety restore
         };
         watchdogTimer.Start();
 
         // D4: Global exception handler
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
-            RestoreTaskbar();
+            AppBarManager.RestoreTaskbar();
             System.IO.File.AppendAllText(@"C:\temp\_dock_crash.txt",
                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " CRASH: " + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "unknown") + "\n");
         };
@@ -865,14 +852,14 @@ static class DockManager
         IntPtr tb = FindWindow("Shell_TrayWnd", null);
         if (dockVisible)
         {
-            HideTaskbar();
+            AppBarManager.HideTaskbar();
             lineForm.WindowState = FormWindowState.Normal;
             FullRefresh();
             Layout();
         }
         else
         {
-            RestoreTaskbar();
+            AppBarManager.RestoreTaskbar();
             lineForm.WindowState = FormWindowState.Minimized;
             foreach (var di in icons) {
                 if (di == null || di.Form == null || di.Form.IsDisposed) continue;
@@ -881,44 +868,8 @@ static class DockManager
         }
     }
 
-    // ===== Taskbar =====
-    [DllImport("shell32.dll")] static extern IntPtr SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
-    const uint ABM_REMOVE = 1, ABM_NEW = 0;
-    const uint ABE_BOTTOM = 3;
-    struct APPBARDATA { public int cbSize; public IntPtr hWnd; public uint uCallbackMessage; public uint uEdge; public RECT rc; public IntPtr lParam; }
-
-    static void HideTaskbar()
-    {
-        if (DebugMode.On) return;
-        var tb = FindWindow("Shell_TrayWnd", null);
-        if (tb != IntPtr.Zero)
-        {
-            // Unregister taskbar as appbar → releases reserved work area
-            var abd = new APPBARDATA();
-            abd.cbSize = Marshal.SizeOf(abd);
-            abd.hWnd = tb;
-            SHAppBarMessage(ABM_REMOVE, ref abd);
-            // Move off-screen so Explorer can't show it even if it tries
-            ShowWindow(tb, 0);
-            int h = Screen.PrimaryScreen.Bounds.Height;
-            SetWindowPos(tb, IntPtr.Zero, 0, h + 100, 0, 0, 0x0001 | 0x0004 | 0x0010);
-        }
-    }
-
-    static void RestoreTaskbar()
-    {
-        var tb = FindWindow("Shell_TrayWnd", null);
-        if (tb != IntPtr.Zero)
-        {
-            // Re-register taskbar as bottom-edge appbar
-            var abd = new APPBARDATA();
-            abd.cbSize = Marshal.SizeOf(abd);
-            abd.hWnd = tb;
-            abd.uEdge = ABE_BOTTOM;
-            SHAppBarMessage(ABM_NEW, ref abd);
-            ShowWindow(tb, 5);
-        }
-    }
+    // ===== Taskbar management is in Core/AppBarManager.cs =====
+    // Edge guard lifecycle is also managed by AppBarManager
 
     // ===== Special icons =====
     static void EnsureMinimizeIcon(List<DockIcon> newIcons)
@@ -1139,7 +1090,7 @@ static class DockManager
     {
         var pid = di.Pid;
         di.SetRightClick(pos => {
-            bool hasVisibleWindow = di.HWnd != IntPtr.Zero && IsWindow(di.HWnd) && IsWindowVisible(di.HWnd);
+            bool hasVisibleWindow = di.HWnd != IntPtr.Zero && IsWindow(di.HWnd) && User32.IsWindowVisible(di.HWnd);
             bool isRunning = di.Pid > 0;
             bool pinned = di.Pinned && !string.IsNullOrEmpty(di.PinPath) && PinStore.IsPinned(di.PinPath);
             var _hwnd = di.HWnd; var _pinPath = di.PinPath; var _pid = di.Pid;
@@ -1179,7 +1130,7 @@ static class DockManager
 
     static bool IsVisibleWindow(IntPtr hWnd)
     {
-        if (!IsWindowVisible(hWnd)) return false;
+        if (!User32.IsWindowVisible(hWnd)) return false;
         int ex = GetWindowLong(hWnd, GWL_EXSTYLE);
         if ((ex & WS_EX_TOOLWINDOW) != 0) return false;
         var sb = new System.Text.StringBuilder(256); GetWindowText(hWnd, sb, 256);
@@ -1222,7 +1173,7 @@ static class DockManager
         IntPtr hw = IntPtr.Zero;
         while ((hw = FindNextWindow(hw)) != IntPtr.Zero)
         {
-            if (!IsWindowVisible(hw)) continue;
+            if (!User32.IsWindowVisible(hw)) continue;
             int ex = GetWindowLong(hw, GWL_EXSTYLE);
             if ((ex & WS_EX_TOOLWINDOW) != 0) continue;
             var sb = new System.Text.StringBuilder(256);

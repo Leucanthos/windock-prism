@@ -4,12 +4,13 @@ $base = (Get-Item (Split-Path $MyInvocation.MyCommand.Path)).FullName
 $sharedDir = "$base\..\Shared"
 
 $files = @(
-    "$sharedDir\DebugMode.cs", "$sharedDir\EventLog.cs", "$sharedDir\Overlay.cs",
+    "$sharedDir\DebugMode.cs", "$sharedDir\EventLog.cs",
     "$sharedDir\Version.cs", "$sharedDir\W.cs",
     "$base\App.cs",
-    "$base\Core\DockBar.cs", "$base\Core\DockLine.cs", "$base\Core\DockManager.cs",
+    "$base\Win32\User32.cs", "$base\Win32\Shell32.cs", "$base\Win32\Kernel32.cs", "$base\Win32\Structs.cs",
+    "$base\Core\DockBar.cs", "$base\Core\DockManager.cs", "$base\Core\AppBarManager.cs",
     "$base\Core\LayoutEngine.cs", "$base\Core\PinStore.cs",
-    "$base\UI\DockIcon.cs", "$base\UI\GlassMenu.cs", "$base\UI\IconMenu.cs",
+    "$base\UI\DockIcon.cs", "$base\UI\IconMenu.cs",
     "$base\Common\Theme.cs"
 )
 
